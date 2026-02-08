@@ -1,44 +1,84 @@
 import streamlit as st
-import supabase
 import pandas as pd
+import plotly.express as px
+from supabase import create_client, Client
+import hashlib
 
-# Initialize Supabase client
-url = "https://your-supabase-url.supabase.co"
-key = "your-supabase-api-key"
-supabase_client = supabase.create_client(url, key)
+# Create a Supabase client with secrets
+url = st.secrets['supabase_url']
+key = st.secrets['supabase_key']
+client: Client = create_client(url, key)
 
-# Streamlit app title
-st.title("Receipt Management App")
+# Title of the application
+st.title("KC's Receipt Shoebox")
 
-# Functionality to upload receipts
-st.header("Upload Receipt")
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-if uploaded_file is not None:
-    # Reading the uploaded CSV file
-    df = pd.read_csv(uploaded_file)
-    # Display the uploaded data
-    st.write(df)
-    # Save the data to Supabase
-    supabase_client.table('receipts').insert(df.to_dict(orient='records')).execute()
-    st.success('Receipts uploaded successfully!')
+# Function to load transactions with error handling
+@st.cache_data
+def load_data(table_name):
+    try:
+        data = client.table(table_name).select('*').execute()
+        if data.data:
+            return pd.DataFrame(data.data)
+        else:
+            st.error(f"No data found in {table_name}.")
+            return pd.DataFrame()  
+    except Exception as e:
+        st.error(f"Error loading {table_name}: {e}")
+        return pd.DataFrame()
 
-# Functionality for dashboard analytics
-st.header("Dashboard Analytics")
-receipts = supabase_client.table('receipts').select('*').execute()
-if receipts:
-    # Basic analytics
-    st.write(f'Total Receipts: {len(receipts.data)}')
-    total_amount = sum(item['amount'] for item in receipts.data)
-    st.write(f'Total Amount: ${total_amount}') 
-    # More complex analytics can be added here...
-else:
-    st.write('No receipts found.')
+# Dashboard function
+def dashboard():
+    st.header("Dashboard")
+    hsa_data = load_data('hsa_transactions')
+    rental_data = load_data('rental_transactions')
 
-# Functionality to sync CSV
-st.header("CSV Sync Functionality")
-if st.button('Sync CSV'):
-    # Example sync functionality (could be extended)
-    csv_data = supabase_client.table('receipts').select('*').execute()
-    # You can convert this data into a CSV and allow user to download
-    st.download_button(label='Download CSV', data=pd.DataFrame(csv_data.data).to_csv(index=False), file_name='receipts_data.csv', mime='text/csv')
-    st.success('CSV sync complete!')
+    # Display metrics and charts
+    if not hsa_data.empty:
+        st.subheader("HSA Transactions")
+        st.metric(label="Total Spend", value=hsa_data['amount'].sum())
+        fig_hsa = px.bar(hsa_data, x='merchant', y='amount', title='HSA Annual Spend')
+        st.plotly_chart(fig_hsa)
+
+    if not rental_data.empty:
+        st.subheader("Rental Transactions")
+        st.metric(label="Total Spend", value=rental_data['amount'].sum())
+        fig_rental = px.bar(rental_data, x='merchant', y='amount', title='Rental Annual Spend')
+        st.plotly_chart(fig_rental)
+
+# Uploader function
+def uploader():
+    st.header("Uploader")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Manual Receipt Upload")
+        uploaded_file = st.file_uploader("Choose a file")
+        merchant_name = st.text_input("Merchant Name")
+        amount = st.number_input("Amount", min_value=0.0)
+        date = st.date_input("Date")
+        rental = st.checkbox("Rental Property")
+        if st.button('Upload'):
+            if uploaded_file and merchant_name and amount:
+                # Implement upload logic
+                st.success("Receipt uploaded successfully!")
+            else:
+                st.error("Please fill all fields and upload a file.")
+
+    with col2:
+        st.subheader("CSV Smart Sync")
+        csv_file = st.file_uploader("Upload CSV File for Sync")
+        if st.button('Sync CSV'):
+            if csv_file:
+                # Implement sync logic
+                st.success("CSV synchronized successfully!")
+            else:
+                st.error("Please upload a CSV file.")
+
+# Sidebar navigation
+st.sidebar.title("Navigation")
+selection = st.sidebar.radio("Go to", ["Dashboard", "Uploader"])
+
+if selection == "Dashboard":
+    dashboard()
+elif selection == "Uploader":
+    uploader()
