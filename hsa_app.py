@@ -8,12 +8,10 @@ import hashlib, re
 st.set_page_config(page_title="Shoebox", layout="wide")
 st.markdown("<style>.stMetric {background:white; padding:12px; border-radius:10px; border:1px solid #eee;} h1 {text-align: center;}</style>", unsafe_allow_html=True)
 
-# FIXED: Proper indentation for the try/except block
 try:
     sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 except Exception as e:
-    st.error(f"Config Error: {e}")
-    st.stop()
+    st.error(f"Config Error: {e}"); st.stop()
 
 st.title("KC's Receipt Shoebox")
 
@@ -48,4 +46,19 @@ if page == "Dashboard":
         with (s1 if t=="HSA" else s2):
             if not d.empty:
                 st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
-                tr = d.set_index('date').resample('YE')['amount'].sum().reset_
+                # FIXED: Ensuring full line completion for resampling
+                tr = d.set_index('date').resample('YE')['amount'].sum().reset_index()
+                tr['year'] = tr['date'].dt.year.astype(str)
+                fig = px.bar(tr, x='year', y='amount', title=f"Annual {t} Spend", color_discrete_sequence=[c])
+                fig.update_xaxes(type='category')
+                st.plotly_chart(fig, use_container_width=True)
+                st.write(d.sort_values('date', ascending=False)[['date','merchant_name','amount','Receipt']].to_html(escape=False, index=False), unsafe_allow_html=True)
+            else: st.info(f"No {t} data.")
+
+# 3. UPLOADER
+else:
+    l, r = st.columns(2)
+    with l:
+        st.subheader("📷 Capture")
+        with st.form("cap", clear_on_submit=True):
+            f, m, a, d = st.file_uploader("Rec", type=['jpg','png','pdf','jpeg']), st.text_input("Mcht"), st.number_input
