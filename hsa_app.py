@@ -2,47 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from supabase import create_client
-import hashlib, re
-
-st.markdown("""
-    <style>
-    /* Main Background & Font */
-    .stApp {
-        background-color: #f8f9fa;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Sleek Metric Cards */
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-    }
-    
-    /* Modern Tab Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 24px;
-        background-color: transparent;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: transparent;
-        border-radius: 4px 4px 0px 0px;
-        font-weight: 600;
-        font-size: 16px;
-    }
-    
-    /* Cleaner Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #eee;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+import hashlib, re, datetime  # FIXED: Added datetime import
 
 st.set_page_config(page_title="Shoebox", layout="wide")
 st.markdown("<style>.stMetric {background:white; padding:12px; border-radius:10px; border:1px solid #eee;} h1 {text-align: center;}</style>", unsafe_allow_html=True)
@@ -80,15 +40,16 @@ with st.sidebar:
 
 if page == "Dashboard":
     s1, s2 = st.tabs(["Medical (HSA)", "Rental (Atlanta)"])
+    # Logic for both tabs (HSA and Rental)
     for d, t, c, g in [(h_db,"HSA","#00CC96",8550),(r_db,"Rental","#636EFA",None)]:
         with (s1 if t=="HSA" else s2):
             if not d.empty:
-                # Layout for Metric and Download Button
-                col1, col2 = st.columns([3, 1])
-                with col1:
+                # Top Row: Metric and Download Button
+                m1, m2 = st.columns([3, 1])
+                with m1:
                     st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
-                with col2:
-                    # NEW: Download Button
+                with m2:
+                    # CSV Export Logic
                     csv = d.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label=f"📥 Download {t} CSV",
@@ -96,17 +57,10 @@ if page == "Dashboard":
                         file_name=f"{t.lower()}_transactions_{datetime.date.today()}.csv",
                         mime='text/csv',
                     )
-                
-                # Annual Spend Chart logic (Preserving your non-fractional year fix)
+
+                # CHART: Ensuring clean years (No 2025.5)
                 tr = d.set_index('date').resample('YE')['amount'].sum().reset_index()
                 tr['year'] = tr['date'].dt.year.astype(str)
                 fig = px.bar(tr, x='year', y='amount', title=f"Annual {t} Spend", color_discrete_sequence=[c])
                 fig.update_xaxes(type='category')
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Transaction Table
-                st.write(d.sort_values('date', ascending=False)[['date','merchant_name','amount','Receipt']].to_html(escape=False, index=False), unsafe_allow_html=True)
-            else:
-                st.info(f"No {t} data.")
-else:
-    l,
+                st.plotly_chart(fig, use_
