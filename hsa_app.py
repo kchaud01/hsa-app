@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from supabase import create_client
-import hashlib, re, datetime
+import hashlib, re
 
-# 1. SETUP & AESTHETICS (PRESERVED)
+# 1. SETUP & AESTHETICS (STABLE VERSION)
 st.set_page_config(page_title="Shoebox", layout="wide")
 st.markdown("""
     <style>
@@ -44,23 +44,15 @@ with st.sidebar:
         except: st.error("Failed")
     page = st.radio("Nav", ["Dashboard", "Uploader"], label_visibility="collapsed")
 
-# 2. DASHBOARD SECTION (RESTORED & FIXED)
+# 2. DASHBOARD
 if page == "Dashboard":
     s1, s2 = st.tabs(["Medical (HSA)", "Rental (Atlanta)"])
     for d, t, c, g in [(h_db,"HSA","#00CC96",8550),(r_db,"Rental","#636EFA",None)]:
         with (s1 if t=="HSA" else s2):
             if not d.empty:
-                # Top Row: Metric and Download Button (Preserved)
-                m1, m2 = st.columns([3, 1])
-                with m1:
-                    st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
-                with m2:
-                    csv = d.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label=f"📥 Download {t} CSV",
-                        data=csv,
-                        file_name=f"{t.lower()}_transactions_{datetime.date.today()}.csv",
-                        mime='text/csv',
-                    )
-
-                # CHART: Clean Years Only (No 2
+                st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
+                
+                # Chart logic: Categorical year fix included
+                tr = d.set_index('date').resample('YE')['amount'].sum().reset_index()
+                tr['year'] = tr['date'].dt.year.astype(str)
+                fig = px.bar(tr, x='
