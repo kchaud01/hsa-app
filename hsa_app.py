@@ -83,18 +83,30 @@ if page == "Dashboard":
     for d, t, c, g in [(h_db,"HSA","#00CC96",8550),(r_db,"Rental","#636EFA",None)]:
         with (s1 if t=="HSA" else s2):
             if not d.empty:
-                st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
+                # Layout for Metric and Download Button
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.metric(f"{t} Total", f"${d['amount'].sum():,.2f}")
+                with col2:
+                    # NEW: Download Button
+                    csv = d.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label=f"📥 Download {t} CSV",
+                        data=csv,
+                        file_name=f"{t.lower()}_transactions_{datetime.date.today()}.csv",
+                        mime='text/csv',
+                    )
                 
-                # DATA FIX: Ensuring 'year' is a categorical string for Plotly
+                # Annual Spend Chart logic (Preserving your non-fractional year fix)
                 tr = d.set_index('date').resample('YE')['amount'].sum().reset_index()
                 tr['year'] = tr['date'].dt.year.astype(str)
-                
-                # CHART: Explicitly setting the x-axis type to 'category'
                 fig = px.bar(tr, x='year', y='amount', title=f"Annual {t} Spend", color_discrete_sequence=[c])
                 fig.update_xaxes(type='category')
-                
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Transaction Table
                 st.write(d.sort_values('date', ascending=False)[['date','merchant_name','amount','Receipt']].to_html(escape=False, index=False), unsafe_allow_html=True)
-            else: st.info(f"No {t} data.")
+            else:
+                st.info(f"No {t} data.")
 else:
     l,
